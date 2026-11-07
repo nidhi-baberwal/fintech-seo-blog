@@ -1,13 +1,11 @@
-```vue
 <script setup lang="ts">
-import Papa from 'papaparse'
 
 const selectedFile = ref<File | null>(null)
 const previewData = ref<Record<string, string>[]>([])
 const columns = ref<string[]>([])
 const errorMessage = ref('')
 
-const handleFileChange = (event: Event) => {
+const handleFileChange = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
 
@@ -28,20 +26,21 @@ const handleFileChange = (event: Event) => {
 
   selectedFile.value = file
 
-  Papa.parse<Record<string, string>>(file, {
-    header: true,
-    skipEmptyLines: true,
+  const formData = new FormData()
+  formData.append('file', file)
 
-    complete: (result) => {
-      if (result.errors.length > 0) {
-        errorMessage.value = 'There was a problem reading the CSV file.'
-        return
-      }
+  try {
+    const response = await $fetch('/api/upload', {
+      method: 'POST',
+      body: formData
+    })
 
-      previewData.value = result.data.slice(0, 5)
-      columns.value = result.meta.fields ?? []
-    }
-  })
+    previewData.value = response.rows
+    columns.value = response.columns
+  } catch (error) {
+    errorMessage.value = 'Could not upload the CSV file.'
+    console.error(error)
+  }
 }
 </script>
 
