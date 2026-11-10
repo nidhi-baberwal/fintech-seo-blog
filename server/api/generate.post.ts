@@ -1,4 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
@@ -46,31 +48,52 @@ export default defineEventHandler(async (event) => {
   `
 
   try {
-    
-const response = await ai.models.generateContent({
-  model: 'gemini-3.5-flash-lite',
-  contents: prompt,
-  config: {
-    responseMimeType: 'application/json'
-  }
-})
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash-lite',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json'
+      }
+    })
 
-if (!response.text) {
-  throw new Error('Gemini returned an empty response')
-}
+    if (!response.text) {
+      throw new Error('Gemini returned an empty response')
+    }
 
-return {
+    const content = JSON.parse(response.text)
+
+    // Prepare the generated blog data
+    const blogData = {
+      rows: rows.slice(0, 100),
+      columns: Object.keys(rows[0]),
+      content,
+      filename: body?.filename || 'uploaded.csv'
+    }
+
+    // Save the data on the server
+    const dataDirectory = resolve(process.cwd(), '.data')
+    const filePath = resolve(dataDirectory, 'generated-blog.json')
+
+    await mkdir(dataDirectory, { recursive: true })
+
+    await writeFile(
+      filePath,
+      JSON.stringify(blogData, null, 2),
+      'utf-8'
+    )
+
+    return {
       success: true,
-      content: JSON.parse(response.text ?? '{}')
+      content
     }
   } catch (error) {
-  console.error('Gemini generation error:', error)
+    console.error('Gemini generation error:', error)
 
-  throw createError({
-    statusCode: 500,
-    statusMessage: error instanceof Error
-      ? error.message
-      : 'Could not generate blog content'
-  })
-}
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error
+        ? error.message
+        : 'Could not generate blog content'
+    })
+  }
 })

@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 const selectedFile = ref<File | null>(null)
 const previewData = ref<Record<string, string>[]>([])
@@ -14,6 +13,14 @@ interface GeneratedContent {
   insights: string[]
 }
 
+// Shared data for the new blog page
+const generatedBlog = useState<{
+  rows: Record<string, string>[]
+  columns: string[]
+  content: GeneratedContent
+  filename: string
+} | null>('generated-blog', () => null)
+
 const generatedContent = ref<GeneratedContent | null>(null)
 
 const handleFileChange = async (event: Event) => {
@@ -24,6 +31,7 @@ const handleFileChange = async (event: Event) => {
   previewData.value = []
   columns.value = []
   generatedContent.value = null
+  generatedBlog.value = null
 
   if (!file) {
     selectedFile.value = null
@@ -55,21 +63,35 @@ const handleFileChange = async (event: Event) => {
     previewData.value = uploadResponse.rows
     columns.value = uploadResponse.columns
 
-    // Step 2: Send CSV rows to Gemini
+    // Step 2: Generate SEO content using Gemini
     const generateResponse = await $fetch<{
       success: boolean
       content: GeneratedContent
     }>('/api/generate', {
       method: 'POST',
       body: {
-        rows: uploadResponse.rows
+        rows: uploadResponse.rows,
+        filename: file.name
+
       }
     })
 
     generatedContent.value = generateResponse.content
 
+    // Step 3: Save everything for the blog page
+    generatedBlog.value = {
+      rows: uploadResponse.rows,
+      columns: uploadResponse.columns,
+      content: generateResponse.content,
+      filename: file.name
+    }
+
+    // Step 4: Open the generated blog
+    await navigateTo('/blog')
+
   } catch (error) {
-    errorMessage.value = 'Could not upload the CSV or generate blog content. Please try again.'
+    errorMessage.value =
+      'Could not upload the CSV or generate blog content. Please try again.'
     console.error(error)
   } finally {
     isGenerating.value = false
