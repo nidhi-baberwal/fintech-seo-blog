@@ -1,14 +1,15 @@
-import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import Papa from 'papaparse'
 
 export default defineEventHandler(async () => {
-  const filePath = resolve(
-    process.cwd(),
-    'data/fintech_companies_seed.csv'
-  )
+  const csvText = await useStorage('assets:server')
+  .getItem<string>('fintech_companies_seed.csv')
 
-  const csvText = await readFile(filePath, 'utf-8')
+if (!csvText) {
+  throw createError({
+    statusCode: 500,
+    statusMessage: 'CSV file not found'
+  })
+}
 
   const result = Papa.parse<Record<string, string>>(csvText, {
     header: true,
