@@ -1,9 +1,20 @@
-<script setup lang="ts">
 
+<script setup lang="ts">
 const selectedFile = ref<File | null>(null)
 const previewData = ref<Record<string, string>[]>([])
 const columns = ref<string[]>([])
 const errorMessage = ref('')
+const isGenerating = ref(false)
+
+interface GeneratedContent {
+  title: string
+  metaDescription: string
+  introduction: string
+  headings: string[]
+  insights: string[]
+}
+
+const generatedContent = ref<GeneratedContent | null>(null)
 
 const handleFileChange = async (event: Event) => {
   const target = event.target as HTMLInputElement
@@ -12,6 +23,7 @@ const handleFileChange = async (event: Event) => {
   errorMessage.value = ''
   previewData.value = []
   columns.value = []
+  generatedContent.value = null
 
   if (!file) {
     selectedFile.value = null
@@ -25,21 +37,42 @@ const handleFileChange = async (event: Event) => {
   }
 
   selectedFile.value = file
+  isGenerating.value = true
 
   const formData = new FormData()
   formData.append('file', file)
 
   try {
-    const response = await $fetch('/api/upload', {
+    // Step 1: Upload and parse CSV
+    const uploadResponse = await $fetch<{
+      rows: Record<string, string>[]
+      columns: string[]
+    }>('/api/upload', {
       method: 'POST',
       body: formData
     })
 
-    previewData.value = response.rows
-    columns.value = response.columns
+    previewData.value = uploadResponse.rows
+    columns.value = uploadResponse.columns
+
+    // Step 2: Send CSV rows to Gemini
+    const generateResponse = await $fetch<{
+      success: boolean
+      content: GeneratedContent
+    }>('/api/generate', {
+      method: 'POST',
+      body: {
+        rows: uploadResponse.rows
+      }
+    })
+
+    generatedContent.value = generateResponse.content
+
   } catch (error) {
-    errorMessage.value = 'Could not upload the CSV file.'
+    errorMessage.value = 'Could not upload the CSV or generate blog content. Please try again.'
     console.error(error)
+  } finally {
+    isGenerating.value = false
   }
 }
 </script>
@@ -110,6 +143,37 @@ const handleFileChange = async (event: Event) => {
           </table>
         </div>
       </div>
+
+      
+<div v-if="isGenerating" class="generating">
+  <h2>Generating your SEO blog...</h2>
+  <p>Please wait while Gemini analyses your CSV data.</p>
+</div>
+
+<div v-if="generatedContent" class="generated-blog">
+  <h2>{{ generatedContent.title }}</h2>
+
+  <p><strong>Meta description:</strong></p>
+  <p>{{ generatedContent.metaDescription }}</p>
+
+  <h3>Introduction</h3>
+  <p>{{ generatedContent.introduction }}</p>
+
+  <h3>Blog headings</h3>
+  <ul>
+    <li v-for="heading in generatedContent.headings" :key="heading">
+      {{ heading }}
+    </li>
+  </ul>
+
+  <h3>Key insights</h3>
+  <ul>
+    <li v-for="insight in generatedContent.insights" :key="insight">
+      {{ insight }}
+    </li>
+  </ul>
+</div>
+
     </section>
   </main>
 </template>
@@ -223,5 +287,33 @@ td {
   h1 {
     font-size: 30px;
   }
+}
+
+.generating,
+.generated-blog {
+  margin-top: 35px;
+  padding: 25px;
+  border-radius: 12px;
+  background: #f1f5f9;
+}
+
+.generating {
+  color: #334155;
+}
+
+.generated-blog h2 {
+  color: #0f172a;
+  margin-bottom: 15px;
+}
+
+.generated-blog h3 {
+  margin-top: 22px;
+  color: #334155;
+}
+
+.generated-blog p,
+.generated-blog li {
+  color: #475569;
+  line-height: 1.7;
 }
 </style>
