@@ -2,6 +2,10 @@
 
 A reusable Nuxt application that generates SEO-friendly blog content from uploaded CSV datasets using Google's Gemini AI.
 
+## Live Demo
+
+[View Live Website](https://fintech-seo-blog.vercel.app/)
+
 ## Features
 
 - Upload CSV files and preview the uploaded data.
